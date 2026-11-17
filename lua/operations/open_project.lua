@@ -1,4 +1,5 @@
 local Globals = require "globals"
+local GetAbsolutePath = require "absolute_path"
 
 ---comment Open a Reaper project from a specified path, relative to the project root.
 ---@param project_path string
@@ -12,7 +13,8 @@ local function OpenProject(project_path)
     project_path = project_path:gsub("\\", "/")
 
     -- Get the project root folder from Reaper's project settings
-    local project_root_folder = reaper.GetExtState(Globals.SECTION, Globals.KEYS.project_root_folder)
+    local project_root_folder = GetAbsolutePath(reaper.GetExtState(Globals.SECTION, Globals.KEYS.project_root_folder))
+    project_root_folder = project_root_folder:gsub("/$", "")
     local full_project_path = project_root_folder .. "/" .. project_path
 
     -- Open the project

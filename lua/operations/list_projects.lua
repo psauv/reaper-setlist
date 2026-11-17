@@ -1,6 +1,6 @@
 local Globals = require "globals"
 local ListRppFilesRecursive = require "list_rpp_files"
-local NormalizePath = require "normalize_path"
+local GetAbsolutePath = require "absolute_path"
 
 local MAX_RUNTIME_SECONDS = 10
 
@@ -12,7 +12,7 @@ local function ListProjects()
         error("Project root folder is not set. Cannot list files.")
     end
 
-    project_root_folder = NormalizePath(project_root_folder)
+    project_root_folder = GetAbsolutePath(project_root_folder)
     project_root_folder = project_root_folder:gsub("/$", "")
 
     -- Record start time for timeout checking

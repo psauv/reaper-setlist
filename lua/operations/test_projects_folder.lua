@@ -1,4 +1,4 @@
-local NormalizePath = require "normalize_path"
+local GetAbsolutePath = require "absolute_path"
 local ListRppFilesRecursive = require "list_rpp_files"
 
 local MAX_RUNTIME_SECONDS = 10
@@ -7,7 +7,7 @@ local MAX_RUNTIME_SECONDS = 10
 ---@return boolean valid
 ---@return string message
 local function TestProjectsFolder(folderPath)
-    local project_root_folder = NormalizePath(folderPath)
+    local project_root_folder = GetAbsolutePath(folderPath)
     project_root_folder = project_root_folder:gsub("/$", "")
 
     -- Record start time for timeout checking
