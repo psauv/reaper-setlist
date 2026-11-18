@@ -29,7 +29,10 @@
 		defaultTags: { ...(originalSong.defaultTags ?? {}) }
 	});
 	const duration = $derived(getDuration(song.length));
-	const tagEntries = $derived(Object.entries(song.defaultTags ?? {}));
+	const tagEntries = $derived(
+		Object.entries(song.defaultTags ?? {}).toSorted((a, b) => a[0].localeCompare(b[0]))
+	);
+
 
 	let hideUsedProjects = $state(true);
 

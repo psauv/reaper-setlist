@@ -148,7 +148,7 @@
 							<span class="song-duration">{formatDuration(songs[songId]?.length || 0)}</span>
 							{#if setlist.songTags?.[songId] && Object.keys(setlist.songTags[songId]).length > 0}
 								<div class="song-tags">
-									{#each Object.entries(setlist.songTags[songId]) as [tagName, isActive] (tagName)}
+									{#each Object.entries(setlist.songTags[songId]).toSorted((a, b) => a[0].localeCompare(b[0])) as [tagName, isActive] (tagName)}
 										<button
 											type="button"
 											class="tag-toggle"

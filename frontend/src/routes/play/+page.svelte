@@ -346,7 +346,7 @@
 			<!-- Gros boutons d'urgence pour les tags du morceau actif -->
 			{#if Object.keys(liveTags).length > 0}
 				<div class="emergency-tags-grid">
-					{#each Object.entries(liveTags) as [tagName, isActive] (tagName)}
+					{#each Object.entries(liveTags).toSorted((a, b) => a[0].localeCompare(b[0])) as [tagName, isActive] (tagName)}
 						<button
 							type="button"
 							class="emergency-tag-button"
@@ -421,7 +421,7 @@
 
 						{#if tab.tags && Object.keys(tab.tags).length > 0}
 							<div class="tab-tags">
-								{#each Object.entries(tab.tags) as [tagName, isActive] (tagName)}
+								{#each Object.entries(tab.tags).toSorted((a, b) => a[0].localeCompare(b[0])) as [tagName, isActive] (tagName)}
 									<button
 										type="button"
 										class="live-tag-toggle"
