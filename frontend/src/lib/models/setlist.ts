@@ -10,4 +10,5 @@ interface SetlistCommon {
 	date: string;
 	venue: string;
 	songs: string[]; // Array of song IDs
+	songTags?: Record<string, Record<string, boolean>>;
 }

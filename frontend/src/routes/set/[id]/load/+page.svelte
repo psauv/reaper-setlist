@@ -10,6 +10,7 @@
 	import type { Setlist } from '$lib/models/setlist';
 	import type { Song } from '$lib/models/song';
 	import type { PageData } from './$types';
+	import type { Chunkable } from '$lib/api/reaper-backend/reaper-rpc-client.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -86,6 +87,18 @@
 				action: () => loadSong(song)
 			});
 
+			// Apply marker tags configured in the setlist for this song
+			const songTags = set?.songTags?.[songId];
+			if (songTags && Object.keys(songTags).length > 0) {
+				newSteps.push({
+					id: `apply-tags-${songId}`,
+					title: `Apply Marker Tags for ${song.name}`,
+					description: `Configure marker actions (${Object.keys(songTags).join(', ')})`,
+					status: 'pending',
+					action: () => applySongTags(song, songTags)
+				});
+			}
+
 			// Add go to start step only if movePlayheadToStart is enabled
 			if (movePlayheadToStart) {
 				newSteps.push({
@@ -118,6 +131,16 @@
 			return true;
 		} catch (error) {
 			notifications.error(`Failed to load song "${song.name}": ${(error as Error).message}`);
+			return false;
+		}
+	}
+
+	async function applySongTags(song: Song, tags: Record<string, boolean>): Promise<boolean> {
+		try {
+			await api.script.setSongMarkerTags(tags as Chunkable<Record<string, boolean>>);
+			return true;
+		} catch (error) {
+			notifications.error(`Failed to apply marker tags for "${song.name}": ${(error as Error).message}`);
 			return false;
 		}
 	}

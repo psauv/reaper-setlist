@@ -13,7 +13,8 @@
 		type PlayState,
 		type ReaperTransport
 	} from '$lib/models/reaper-transport';
-	import { formatDuration } from '$lib/util';
+	import type { Chunkable } from '$lib/api/reaper-backend/reaper-rpc-client.svelte';
+	import { extractTagsFromMarkers, formatDuration } from '$lib/util';
 	import { onDestroy, onMount } from 'svelte';
 	// Icons
 	import PauseIcon from 'virtual:icons/mdi/pause';
@@ -45,6 +46,21 @@
 
 	// Song markers (placeholder data - would come from Reaper)
 	let songMarkers = $state<ReaperMarker[]>([]);
+	// Tags extraits en temps réel des marqueurs de l'onglet actif dans REAPER
+	let liveTags = $derived(extractTagsFromMarkers(songMarkers));
+	// Marqueurs visibles pour la navigation (on masque les marqueurs d'action commençant par '!')
+	let visibleMarkers = $derived(songMarkers.filter((marker) => !marker.name.trim().startsWith('!')));
+
+
+	async function toggleLiveTag(tagName: string, currentState: boolean) {
+		try {
+			const nextState = !currentState;
+			await api.script.setSongMarkerTags({ [tagName]: nextState } as Chunkable<Record<string, boolean>>);
+			await refreshMarkers();
+		} catch (error) {
+			notifications.error(`Failed to toggle tag "${tagName}": ${(error as Error).message}`);
+		}
+	}
 
 	// Time calculations
 	const totalSongDuration = $derived(currentTab?.length || 0);
@@ -264,6 +280,21 @@
 				</Button>
 			</div>
 
+			{#if Object.keys(liveTags).length > 0}
+				<div class="live-tags-container">
+					{#each Object.entries(liveTags) as [tagName, isActive] (tagName)}
+						<button
+							type="button"
+							class="live-tag-toggle"
+							class:active={isActive}
+							onclick={() => toggleLiveTag(tagName, isActive)}
+						>
+							{tagName}: {isActive ? 'ON' : 'OFF'}
+						</button>
+					{/each}
+				</div>
+			{/if}
+
 			<div class="next-up-info">
 				<div class="next-up-header">
 					<h4>Next Up</h4>
@@ -348,7 +379,7 @@
 					<div class="marker-name">Start</div>
 					<div class="marker-time">{formatTime(0)}</div>
 				</button>
-				{#each songMarkers as marker (marker.id)}
+				{#each visibleMarkers as marker (marker.id)}
 					<button class="marker-button" onclick={() => goToMarker(marker)}>
 						<div class="marker-name">{marker.name}</div>
 						<div class="marker-time">{formatTime(marker.position)}</div>
@@ -370,6 +401,32 @@
 		display: flex;
 		gap: 1rem;
 		align-items: center;
+	}
+
+		.live-tags-container {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.5rem;
+		margin: 0.75rem 0;
+	}
+
+	.live-tag-toggle {
+		font-size: 0.85rem;
+		padding: 0.4rem 0.85rem;
+		border-radius: 0.375rem;
+		border: 1px solid var(--comment);
+		background: var(--current-line);
+		color: var(--comment);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.live-tag-toggle.active {
+		background: var(--green, #50fa7b);
+		border-color: var(--green, #50fa7b);
+		color: var(--background, #282a36);
+		font-weight: 600;
 	}
 
 	.next-up-info {

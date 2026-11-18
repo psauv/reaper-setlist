@@ -10,4 +10,5 @@ interface SongCommon {
 	name: string;
 	length: number;
 	path: string;
+	defaultTags?: Record<string, boolean>;
 }

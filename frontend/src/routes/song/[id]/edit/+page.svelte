@@ -12,6 +12,7 @@
 	async function onSubmit(song: Song) {
 		try {
 			await api.songs.update(song.id, song);
+			await api.sets.syncSongTagsInSets(song);
 			notifications.success('Song updated successfully!');
 			await goto(`#/song`);
 		} catch (error) {

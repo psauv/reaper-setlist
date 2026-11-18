@@ -13,6 +13,7 @@ export type SongsStore = KeyValueStore<string, Song>;
 
 export interface SetlistsStore extends KeyValueStore<string, Setlist> {
 	deleteSongFromSets(id: string): unknown;
+	syncSongTagsInSets(song: Song): Promise<void>;
 }
 
 export interface Api {

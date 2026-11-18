@@ -26,7 +26,20 @@
 
 	let { setlist: initialSetlist, songs, onSubmit }: SetEditorProps<T> = $props();
 
-	let setlist = $state({ ...initialSetlist });
+	// Helper pour cloner proprement un objet réactif Svelte sans utiliser structuredClone
+	function cloneSongTags(tags?: Record<string, Record<string, boolean>>): Record<string, Record<string, boolean>> {
+		if (!tags) return {};
+		const copy: Record<string, Record<string, boolean>> = {};
+		for (const [songId, songTagMap] of Object.entries(tags)) {
+			copy[songId] = { ...songTagMap };
+		}
+		return copy;
+	}
+
+	let setlist = $state({
+		...initialSetlist,
+		songTags: cloneSongTags(initialSetlist.songTags)
+	});
 
 	let remainingSongs = $derived(
 		Object.values(songs)
@@ -50,8 +63,21 @@
 		const song = songs[newSongId];
 		if (song) {
 			setlist.songs.push(song.id);
+			setlist.songTags[song.id] = { ...(song.defaultTags ?? {}) };
 			newSongId = remainingSongs[0]?.id || null;
 		}
+	}
+
+	function removeSongFromSetlist(index: number, songId: string) {
+		setlist.songs.splice(index, 1);
+		delete setlist.songTags[songId];
+	}
+
+	function toggleSongTag(songId: string, tagName: string) {
+		if (!setlist.songTags[songId]) {
+			setlist.songTags[songId] = { ...(songs[songId]?.defaultTags ?? {}) };
+		}
+		setlist.songTags[songId][tagName] = !setlist.songTags[songId][tagName];
 	}
 
 	function getMiddle(element: HTMLElement) {
@@ -120,8 +146,22 @@
 						<div class="song-info">
 							<span class="song-name">{songs[songId]?.name}</span>
 							<span class="song-duration">{formatDuration(songs[songId]?.length || 0)}</span>
+							{#if setlist.songTags?.[songId] && Object.keys(setlist.songTags[songId]).length > 0}
+								<div class="song-tags">
+									{#each Object.entries(setlist.songTags[songId]) as [tagName, isActive] (tagName)}
+										<button
+											type="button"
+											class="tag-toggle"
+											class:active={isActive}
+											onclick={() => toggleSongTag(songId, tagName)}
+										>
+											{tagName}: {isActive ? 'ON' : 'OFF'}
+										</button>
+									{/each}
+								</div>
+							{/if}
 						</div>
-						<Button color="delete" onclick={() => setlist.songs.splice(i, 1)} variant="icon"><DeleteIcon /></Button>
+						<Button color="delete" onclick={() => removeSongFromSetlist(i, songId)} variant="icon"><DeleteIcon /></Button>
 					</div>
 				</div>
 			{/each}
@@ -229,6 +269,31 @@
 		color: var(--comment);
 		font-family: monospace;
 		font-size: 0.875rem;
+	}
+
+	.song-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+		margin-top: 0.25rem;
+	}
+
+	.tag-toggle {
+		font-size: 0.75rem;
+		padding: 0.2rem 0.5rem;
+		border-radius: 0.25rem;
+		border: 1px solid var(--comment);
+		background: transparent;
+		color: var(--comment);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.tag-toggle.active {
+		background: var(--green, #50fa7b);
+		border-color: var(--green, #50fa7b);
+		color: var(--background, #282a36);
+		font-weight: 600;
 	}
 
 	.dragging {

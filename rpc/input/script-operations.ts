@@ -26,4 +26,5 @@ export interface ScriptOperations {
 	getOpenTabs: () => TabsResponse;
 	writeChunkedData: <T>(section: string, key: string, chunks: Chunkable<T>) => void;
 	deleteState: (section: string, key: string) => void;
+	setSongMarkerTags: <T>(tags: Chunkable<T>) => void;
 }

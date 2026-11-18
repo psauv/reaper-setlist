@@ -6,6 +6,7 @@
 	import Button from '$lib/components/Button/Button.svelte';
 	import type { Database } from '$lib/models/database';
 	import type { NewSong, Song } from '$lib/models/song';
+	import { extractTagsFromMarkers } from '$lib/util';
 
 	export interface SongEditorProps<T extends SongLike> {
 		song: T;
@@ -23,21 +24,24 @@
 	// eslint-disable-next-line no-undef
 	type T = $$Generic<SongLike>;
 	let { song: originalSong, onSubmit, projects, songs }: SongEditorProps<T> = $props();
-	const song = $state({ ...originalSong });
+	const song = $state({
+		...originalSong,
+		defaultTags: { ...(originalSong.defaultTags ?? {}) }
+	});
 	const duration = $derived(getDuration(song.length));
+	const tagEntries = $derived(Object.entries(song.defaultTags ?? {}));
 
-	// State for hiding projects that exist in other songs
 	let hideUsedProjects = $state(true);
 
-	// Get projects that are already used by other songs (excluding current song if editing)
 	const usedProjects = $derived(
 		Object.values(songs)
-			.filter((s) => s.id !== song.id) // Exclude current song when editing
+			.filter((s) => s.id !== song.id)
 			.map((s) => s.path)
 	);
 
-	// Filter projects based on checkbox state
-	const filteredProjects = $derived(hideUsedProjects ? projects.filter((project) => !usedProjects.includes(project)) : projects);
+	const filteredProjects = $derived(
+		hideUsedProjects ? projects.filter((project) => !usedProjects.includes(project)) : projects
+	);
 
 	function getDuration(length: number) {
 		const minutes = Math.floor(length / 60);
@@ -47,28 +51,38 @@
 
 	function handleProjectSelect(projectPath: string) {
 		song.path = projectPath;
-
-		// Extract filename from path and remove extension for song name
 		const pathSegments = projectPath.split(/[/\\]/);
 		const filename = pathSegments[pathSegments.length - 1];
 		const nameWithoutExtension = filename.replace(/\.[^/.]+$/, '');
 		song.name = nameWithoutExtension;
 	}
 
-	async function handleGetDurationClick() {
+	async function handleGetFromReaperClick() {
 		const openTabs = await api.script.getOpenTabs();
 		const activeTab = openTabs.tabs[openTabs.activeIndex];
 		let openedNewTab = false;
+
 		if (!activeTab || !song.path.endsWith(activeTab.name)) {
 			await api.reaper.newTab();
 			await api.script.openProject(song.path);
 			openedNewTab = true;
 		}
+
 		song.length = Math.ceil(await api.script.getProjectLength());
+		const markers = await api.reaper.getMarkers();
+		song.defaultTags = extractTagsFromMarkers(markers);
+
 		if (openedNewTab) {
 			await api.reaper.closeTab();
 		}
-		notifications.success('Duration retrieved from Reaper!');
+
+		const tagCount = Object.keys(song.defaultTags).length;
+		notifications.success(`Duration and ${tagCount} tag(s) retrieved from Reaper!`);
+	}
+
+	function toggleDefaultTag(tagName: string) {
+		if (!song.defaultTags) song.defaultTags = {};
+		song.defaultTags[tagName] = !song.defaultTags[tagName];
 	}
 </script>
 
@@ -98,9 +112,38 @@
 		<label for="duration">Duration (seconds):</label>
 		<div class="input-with-button">
 			<input bind:value={song.length} type="number" id="duration" placeholder="Duration in seconds" min="0" required />
-			<Button elementType="button" onclick={handleGetDurationClick} disabled={song.path === ''}>Get from Reaper</Button>
+			<Button elementType="button" onclick={handleGetFromReaperClick} disabled={song.path === ''}>Get from Reaper</Button>
 		</div>
 		<span class="duration-display">{duration}</span>
+	</div>
+
+	<div class="form-group">
+		<label>Marker Tags (Default values):</label>
+		{#if tagEntries.length === 0}
+			<p class="no-tags">No tagged markers found. Click "Get from Reaper" to scan project markers.</p>
+		{:else}
+			<table class="tags-table">
+				<thead>
+					<tr>
+						<th>Tag Name</th>
+						<th>Default State</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each tagEntries as [tagName, isActive] (tagName)}
+						<tr>
+							<td>{tagName}</td>
+							<td>
+								<label class="toggle-label">
+									<input type="checkbox" checked={isActive} onchange={() => toggleDefaultTag(tagName)} />
+									<span>{isActive ? 'Enabled' : 'Disabled'}</span>
+								</label>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
 	</div>
 
 	<div class="submit-section">
@@ -134,5 +177,38 @@
 		cursor: pointer;
 		width: auto;
 		margin: 0;
+	}
+
+	.no-tags {
+		font-size: 0.875rem;
+		color: var(--text-muted);
+		font-style: italic;
+		margin: 0.25rem 0;
+	}
+
+	.tags-table {
+		width: 100%;
+		border-collapse: collapse;
+		margin-top: 0.5rem;
+	}
+
+	.tags-table th,
+	.tags-table td {
+		text-align: left;
+		padding: 0.5rem;
+		border-bottom: 1px solid var(--border, #333);
+	}
+
+	.toggle-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+	}
+
+	.toggle-label input[type='checkbox'] {
+		width: auto;
+		margin: 0;
+		cursor: pointer;
 	}
 </style>

@@ -12,6 +12,8 @@
 	import DeleteIcon from 'virtual:icons/mdi/delete';
 	import EditIcon from 'virtual:icons/mdi/pencil';
 	import PlayIcon from 'virtual:icons/mdi/play';
+	
+	import { extractTagsFromMarkers } from '$lib/util';
 
 	let { data }: PageProps = $props();
 
@@ -48,22 +50,22 @@
 	}
 
 	async function addSongFromProject(project: string): Promise<Song> {
-		// get the filename and remove the extension
 		const name = project
 			.split('/')
 			.pop()
 			?.replace(/\.[^/.]+$/, '');
-		// open the song in a new tab
 		await api.reaper.newTab();
 		await api.script.openProject(project);
-		// get the song length
 		const length = await api.script.getProjectLength();
-		// close the tab
+		const markers = await api.reaper.getMarkers();
+		const defaultTags = extractTagsFromMarkers(markers);
 		await api.reaper.closeTab();
+
 		const song = await api.songs.add({
 			name: name || project,
 			path: project,
-			length: length
+			length: length,
+			defaultTags: defaultTags
 		});
 		return song;
 	}

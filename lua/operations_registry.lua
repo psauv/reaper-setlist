@@ -21,6 +21,7 @@ local GetProjectLength = require "operations/get_project_length"
 local GetOpenTabs = require "operations/get_open_tabs"
 local WriteChunkedData = require "operations/write_chunked_data"
 local DeleteState = require "operations/delete_state"
+local SetSongMarkerTags = require "operations/set_song_marker_tags"
 
 ---@class ReaperTab
 ---@field index number
@@ -160,6 +161,27 @@ local Operations = {
 
 		reaper.DeleteExtState(Globals.SECTION, "section", true)
 		reaper.DeleteExtState(Globals.SECTION, "key", true)
+	end),
+
+	["setSongMarkerTags"] = safe_operation(function()
+		local tags_length = reaper.GetExtState(Globals.SECTION, "tags_length")
+		if tags_length == nil or tags_length == "" then
+			error("Missing required parameter: tags_length")
+		end
+
+		local tags = {}
+		for i = 0, (tonumber(tags_length) - 1) do
+			local chunk = reaper.GetExtState(Globals.SECTION, "tags_" .. i)
+			if chunk and chunk ~= "" then
+				tags[i + 1] = chunk
+			else
+				error("Missing chunk for tags at index " .. i)
+			end
+		end
+
+		SetSongMarkerTags(tags)
+
+		reaper.DeleteExtState(Globals.SECTION, "tags", true)
 	end),
 }
 
