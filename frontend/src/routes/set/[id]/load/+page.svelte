@@ -90,14 +90,16 @@
 			// Apply marker tags configured in the setlist for this song
 			const songTags = set?.songTags?.[songId];
 			if (songTags && Object.keys(songTags).length > 0) {
+				const tabIndex = replaceExistingTabs ? index : data.tabs.tabs.length + index;
 				newSteps.push({
 					id: `apply-tags-${songId}`,
 					title: `Apply Marker Tags for ${song.name}`,
 					description: `Configure marker actions (${Object.keys(songTags).join(', ')})`,
 					status: 'pending',
-					action: () => applySongTags(song, songTags)
+					action: () => applySongTags(song, tabIndex, songTags)
 				});
 			}
+
 
 			// Add go to start step only if movePlayheadToStart is enabled
 			if (movePlayheadToStart) {
@@ -135,15 +137,19 @@
 		}
 	}
 
-	async function applySongTags(song: Song, tags: Record<string, boolean>): Promise<boolean> {
+		async function applySongTags(song: Song, tabIndex: number, tags: Record<string, boolean>): Promise<boolean> {
 		try {
-			await api.script.setSongMarkerTags(tags as Chunkable<Record<string, boolean>>);
+			await api.script.setSongMarkerTags(
+				tabIndex.toString(),
+				tags as Chunkable<Record<string, boolean>>
+			);
 			return true;
 		} catch (error) {
 			notifications.error(`Failed to apply marker tags for "${song.name}": ${(error as Error).message}`);
 			return false;
 		}
 	}
+
 
 	async function newTab(): Promise<boolean> {
 		try {
