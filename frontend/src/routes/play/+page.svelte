@@ -23,6 +23,7 @@
 	import SkipNextIcon from 'virtual:icons/mdi/skip-next';
 	import SkipPreviousIcon from 'virtual:icons/mdi/skip-previous';
 	import StopIcon from 'virtual:icons/mdi/stop';
+	import { Commands } from '$lib/api/reaper-backend/commands';
 
 	const api = getApi();
 
@@ -154,6 +155,28 @@
 			updateTransport(result.transport);
 		}
 	}
+
+	async function goToTab(targetIndex: number) {
+		if (!allTabs || targetIndex === currentSongIndex || targetIndex < 0 || targetIndex >= allTabs.length) {
+			return;
+		}
+
+		try {
+			const diff = targetIndex - currentSongIndex;
+			const commands =
+				diff > 0
+					? Array(diff).fill(0).map(() => Commands.nextTab())
+					: Array(-diff).fill(0).map(() => Commands.previousTab());
+
+			await api.reaper.executeCommands(commands);
+			currentSongIndex = targetIndex;
+			await refreshMarkers();
+			await refreshTransport();
+		} catch (error) {
+			notifications.error(`Failed to switch tab: ${(error as Error).message}`);
+		}
+	}
+
 
 	async function goToMarker(marker: ReaperMarker) {
 		try {
@@ -374,11 +397,11 @@
 			<div class="tabs-list">
 				{#each allTabs as tab (tab.index)}
 					<div class="tab-row" class:active-tab={tab.index === currentSongIndex}>
-						<div class="tab-row-info">
+						<button type="button" class="tab-row-select" onclick={() => goToTab(tab.index)}>
 							<span class="tab-index">#{tab.index + 1}</span>
 							<span class="tab-title">{formatTitle(tab.name)}</span>
 							<span class="tab-duration">{formatDuration(tab.length)}</span>
-						</div>
+						</button>
 
 						{#if tab.tags && Object.keys(tab.tags).length > 0}
 							<div class="tab-tags">
@@ -649,10 +672,23 @@
 		background: hsl(from var(--current-line) h s calc(l * 1.15));
 	}
 
-	.tab-row-info {
+	.tab-row-select {
 		display: flex;
 		align-items: center;
 		gap: 0.65rem;
+		flex: 1;
+		background: transparent;
+		border: none;
+		padding: 0;
+		text-align: left;
+		cursor: pointer;
+		color: inherit;
+		font: inherit;
+	}
+
+	.tab-row-select:hover .tab-title {
+		color: var(--primary);
+		text-decoration: underline;
 	}
 
 	.tab-index {
