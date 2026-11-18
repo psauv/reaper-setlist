@@ -55,7 +55,8 @@ local function FormatTagBlock(inner_content, is_active)
     return result
 end
 
----Met à jour les marqueurs taggués du projet actif selon les chunks JSON reçus
+---Met à jour les marqueurs taggués d'un onglet précis selon les chunks JSON reçus
+---@param tab_index string|number
 ---@param tag_chunks string[]
 local function SetSongMarkerTags(tab_index, tag_chunks)
     if not tag_chunks or type(tag_chunks) ~= "table" then
@@ -63,19 +64,28 @@ local function SetSongMarkerTags(tab_index, tag_chunks)
     end
 
     local idx = tonumber(tab_index)
-    local proj = (idx ~= nil) and reaper.EnumProjects(idx) or 0
-    if not proj then
+    local target_proj = (idx ~= nil) and reaper.EnumProjects(idx) or reaper.EnumProjects(-1)
+    if not target_proj then
         return
+    end
+
+    local original_proj = reaper.EnumProjects(-1)
+    local switched = false
+
+    -- Activer temporairement l'onglet cible si ce n'est pas l'onglet courant
+    if target_proj ~= original_proj then
+        reaper.SelectProjectInstance(target_proj)
+        switched = true
     end
 
     local raw_json = table.concat(tag_chunks)
     local tags = ParseTagsJson(raw_json)
 
-    local _, num_markers, num_regions = reaper.CountProjectMarkers(proj)
+    local _, num_markers, num_regions = reaper.CountProjectMarkers(0)
     local total = num_markers + num_regions
 
     for i = 0, total - 1 do
-        local retval, isrgn, pos, rgnend, name, markrgnindexnumber, color = reaper.EnumProjectMarkers3(proj, i)
+        local retval, isrgn, pos, rgnend, name, markrgnindexnumber, color = reaper.EnumProjectMarkers3(0, i)
         if retval > 0 and not isrgn and name then
             local changed = false
             local new_name = name:gsub("%[([^%]]+)%]%(([^%)]*)%)", function(tag_name, inner_content)
@@ -93,6 +103,12 @@ local function SetSongMarkerTags(tab_index, tag_chunks)
             end
         end
     end
+
+    -- Restaurer immédiatement l'onglet actif d'origine
+    if switched and original_proj then
+        reaper.SelectProjectInstance(original_proj)
+    end
 end
+
 
 return SetSongMarkerTags
