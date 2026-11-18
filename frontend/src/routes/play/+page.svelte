@@ -393,7 +393,7 @@
 
 		<!-- Encart 3 : Vue d'ensemble des onglets & contrôle des tags à la volée -->
 		<div class="tabs-overview-section">
-			<h3>Setlist Tabs & Live Tags</h3>
+			<h3>Setlist Overview</h3>
 			<div class="tabs-list">
 				{#each allTabs as tab (tab.index)}
 					<div class="tab-row" class:active-tab={tab.index === currentSongIndex}>
