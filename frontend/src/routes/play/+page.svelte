@@ -52,15 +52,22 @@
 	let visibleMarkers = $derived(songMarkers.filter((marker) => !marker.name.trim().startsWith('!')));
 
 
-	async function toggleLiveTag(tagName: string, currentState: boolean) {
+	async function toggleTabTag(tabIndex: number, tagName: string, currentState: boolean) {
 		try {
 			const nextState = !currentState;
-			await api.script.setSongMarkerTags({ [tagName]: nextState } as Chunkable<Record<string, boolean>>);
-			await refreshMarkers();
+			await api.script.setSongMarkerTags(
+				tabIndex.toString(),
+				{ [tagName]: nextState } as Chunkable<Record<string, boolean>>
+			);
+			await refreshTabs();
+			if (tabIndex === currentSongIndex) {
+				await refreshMarkers();
+			}
 		} catch (error) {
 			notifications.error(`Failed to toggle tag "${tagName}": ${(error as Error).message}`);
 		}
 	}
+
 
 	// Time calculations
 	const totalSongDuration = $derived(currentTab?.length || 0);
@@ -261,62 +268,30 @@
 	<h1>Live Player</h1>
 
 	{#if allTabs && currentTab}
-		<!-- Current Song Display -->
-		<div class="current-song-section">
-			<div class="song-info">
-				<div class="song-meta">
+		<!-- Encart 1 : Lecteur unifié & Progression -->
+		<div class="player-card main-player-card">
+			<div class="compact-header">
+				<div class="current-track-block">
 					<span class="song-number">Track {currentSongIndex + 1} of {allTabs.length}</span>
+					<h2 class="song-title">{formatTitle(currentTab.name)}</h2>
 				</div>
-				<h2 class="song-title">{formatTitle(currentTab.name)}</h2>
-			</div>
 
-			<div class="track-navigation">
-				<Button variant="icon" onclick={previousTrack} disabled={currentSongIndex === 0}>
-					<SkipPreviousIcon />
-				</Button>
-
-				<Button variant="icon" onclick={nextTrack} disabled={!allTabs || currentSongIndex >= allTabs.length - 1}>
-					<SkipNextIcon />
-				</Button>
-			</div>
-
-			{#if Object.keys(liveTags).length > 0}
-				<div class="live-tags-container">
-					{#each Object.entries(liveTags) as [tagName, isActive] (tagName)}
-						<button
-							type="button"
-							class="live-tag-toggle"
-							class:active={isActive}
-							onclick={() => toggleLiveTag(tagName, isActive)}
-						>
-							{tagName}: {isActive ? 'ON' : 'OFF'}
-						</button>
-					{/each}
-				</div>
-			{/if}
-
-			<div class="next-up-info">
-				<div class="next-up-header">
-					<h4>Next Up</h4>
+				<div class="next-up-block">
+					<span class="next-up-label">Next Up</span>
 					{#if currentSongIndex < allTabs.length - 1}
 						{@const nextTab = allTabs[currentSongIndex + 1]}
 						{#if nextTab}
-							<div class="next-song">
-								<div class="next-song-name">{formatTitle(nextTab.name)}</div>
-								<div class="next-song-duration">{formatDuration(nextTab.length)}</div>
-							</div>
+							<span class="next-song-name">{formatTitle(nextTab.name)} ({formatDuration(nextTab.length)})</span>
 						{/if}
 					{:else}
-						<div class="set-complete">Set Complete!</div>
+						<span class="set-complete">Set Complete!</span>
 					{/if}
 				</div>
 			</div>
-		</div>
 
-		<!-- Transport Controls & Song Progress -->
-		<div class="transport-section">
-			<div class="transport-controls">
-				<div class="main-controls">
+			<!-- Barre de contrôle séparée : Transport à gauche / Navigation à droite -->
+			<div class="unified-controls">
+				<div class="control-group transport-group">
 					<Button variant="icon" onclick={stop} color={playState === PLAYSTATE_PLAYING || playState === PLAYSTATE_PAUSED ? 'delete' : 'primary'}>
 						<StopIcon />
 					</Button>
@@ -333,13 +308,25 @@
 						<RecordIcon />
 					</Button>
 				</div>
+
+				<div class="control-group navigation-group">
+					<Button variant="icon" onclick={previousTrack} disabled={currentSongIndex === 0} color="secondary">
+						<SkipPreviousIcon />
+					</Button>
+
+					<Button variant="icon" onclick={nextTrack} disabled={!allTabs || currentSongIndex >= allTabs.length - 1} color="secondary">
+						<SkipNextIcon />
+					</Button>
+				</div>
 			</div>
 
-			<div class="song-progress">
+
+			<!-- Barres de progression compactes -->
+			<div class="compact-progress-list">
 				<div class="progress-group">
 					<div class="progress-label">
 						<span>Song Progress</span>
-						<span class="time-display">{formatTime(currentSongTime)} / {formatTime(totalSongDuration)}</span>
+						<span class="time-display">{formatTime(currentSongTime)} / {formatTime(totalSongDuration)} (-{formatTime(remainingSongTime)})</span>
 					</div>
 					<div class="progress-bar-container">
 						<div class="progress-bar">
@@ -347,18 +334,12 @@
 							<div class="progress-handle" style="left: {songProgress}%"></div>
 						</div>
 					</div>
-					<div class="remaining-time">-{formatTime(remainingSongTime)}</div>
 				</div>
-			</div>
-		</div>
 
-		<!-- Set Progress -->
-		<div class="set-section">
-			<div class="set-progress">
 				<div class="progress-group">
 					<div class="progress-label">
 						<span>Set Progress</span>
-						<span class="time-display">{formatTime(totalSetTime)} / {formatTime(totalSetDuration)}</span>
+						<span class="time-display">{formatTime(totalSetTime)} / {formatTime(totalSetDuration)} (-{formatTime(remainingSetTime)})</span>
 					</div>
 					<div class="progress-bar-container">
 						<div class="progress-bar set-progress-bar">
@@ -366,12 +347,11 @@
 							<div class="progress-handle" style="left: {setProgress}%"></div>
 						</div>
 					</div>
-					<div class="remaining-time">-{formatTime(remainingSetTime)}</div>
 				</div>
 			</div>
 		</div>
 
-		<!-- Song Markers -->
+		<!-- Encart 2 : Song Markers -->
 		<div class="markers-section">
 			<h3>Song Markers</h3>
 			<div class="markers-grid">
@@ -387,6 +367,37 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Encart 3 : Vue d'ensemble des onglets & contrôle des tags à la volée -->
+		<div class="tabs-overview-section">
+			<h3>Setlist Tabs & Live Tags</h3>
+			<div class="tabs-list">
+				{#each allTabs as tab (tab.index)}
+					<div class="tab-row" class:active-tab={tab.index === currentSongIndex}>
+						<div class="tab-row-info">
+							<span class="tab-index">#{tab.index + 1}</span>
+							<span class="tab-title">{formatTitle(tab.name)}</span>
+							<span class="tab-duration">{formatDuration(tab.length)}</span>
+						</div>
+
+						{#if tab.tags && Object.keys(tab.tags).length > 0}
+							<div class="tab-tags">
+								{#each Object.entries(tab.tags) as [tagName, isActive] (tagName)}
+									<button
+										type="button"
+										class="live-tag-toggle"
+										class:active={isActive}
+										onclick={() => toggleTabTag(tab.index, tagName, isActive)}
+									>
+										{tagName}: {isActive ? 'ON' : 'OFF'}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</div>
 	{:else}
 		<div class="no-setlist">
 			<h2>No Setlist Loaded</h2>
@@ -396,59 +407,56 @@
 	{/if}
 </div>
 
+
 <style>
-	.track-navigation {
+	.player-container {
+		margin: 0 auto;
+		padding: 1.5rem;
 		display: flex;
-		gap: 1rem;
-		align-items: center;
-	}
-
-		.live-tags-container {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 0.5rem;
-		margin: 0.75rem 0;
-	}
-
-	.live-tag-toggle {
-		font-size: 0.85rem;
-		padding: 0.4rem 0.85rem;
-		border-radius: 0.375rem;
-		border: 1px solid var(--comment);
-		background: var(--current-line);
-		color: var(--comment);
-		cursor: pointer;
-		transition: all 0.15s ease;
-	}
-
-	.live-tag-toggle.active {
-		background: var(--green, #50fa7b);
-		border-color: var(--green, #50fa7b);
-		color: var(--background, #282a36);
-		font-weight: 600;
-	}
-
-	.next-up-info {
+		flex-direction: column;
+		gap: 1.25rem;
 		width: 100%;
-		padding-top: 1rem;
-		border-top: 1px solid var(--current-line);
+		box-sizing: border-box;
 	}
 
-	.next-up-header {
+	/* Encart 1 : Lecteur unifié compact */
+	.main-player-card {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+		padding: 1.5rem;
+		background: var(--background);
+		border-radius: 1rem;
+		border: 2px solid var(--current-line);
+	}
+
+	.compact-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: flex-start;
+		gap: 1rem;
+		flex-wrap: wrap;
 	}
 
-	.next-up-info h4 {
+	.current-track-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.song-number {
+		color: var(--comment);
+		font-size: 0.9rem;
+	}
+
+	.song-title {
 		margin: 0;
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--foreground);
+		font-size: 2rem;
+		font-weight: 700;
+		color: var(--primary);
 	}
 
-	.next-song {
+	.next-up-block {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
@@ -456,75 +464,75 @@
 		text-align: right;
 	}
 
-	.player-container {
-		margin: 0 auto;
-		padding: 2rem;
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-		width: 100%;
-		box-sizing: border-box;
+	.next-up-label {
+		font-size: 0.85rem;
+		color: var(--comment);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 	}
 
-	.current-song-section {
+	.next-song-name {
+		font-weight: 600;
+		color: var(--foreground);
+	}
+
+	.set-complete {
+		color: var(--green);
+		font-weight: 600;
+	}
+
+	.unified-controls {
 		display: flex;
-		flex-direction: column;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: center;
-		gap: 2rem;
-		padding: 2rem;
-		background: var(--background);
-		border-radius: 1rem;
-		border: 2px solid var(--current-line);
+		gap: 1rem;
+		padding: 0.75rem 0;
+		border-top: 1px solid var(--current-line);
+		border-bottom: 1px solid var(--current-line);
 	}
 
-	.song-info {
-		flex: 1;
-		text-align: center;
+	.control-group {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
 	}
 
-	.song-title {
-		margin: 0.5rem 0 0 0;
-		font-size: 2.5rem;
-		font-weight: 700;
-		color: var(--primary);
+	@media (max-width: 480px) {
+		.unified-controls {
+			justify-content: center;
+		}
 	}
 
-	.song-meta {
+	.compact-progress-list {
 		display: flex;
 		flex-direction: column;
-		align-items: center;
-		gap: 0.25rem;
-		color: var(--comment);
-		font-size: 1rem;
-		margin-bottom: 0;
-	}
-
-	:global(.track-nav-button) {
-		flex-shrink: 0;
+		gap: 0.85rem;
 	}
 
 	.progress-group {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.35rem;
 	}
 
 	.progress-label {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		font-size: 0.9rem;
 		font-weight: 600;
 		color: var(--foreground);
 	}
 
 	.time-display {
 		font-family: monospace;
-		font-size: 1.1rem;
+		font-size: 0.95rem;
+		color: var(--comment);
 	}
 
 	.progress-bar-container {
-		padding: 0.5rem 0;
+		padding: 0.25rem 0;
 	}
 
 	.progress-bar {
@@ -550,41 +558,36 @@
 		position: absolute;
 		top: 50%;
 		transform: translate(-50%, -50%);
-		width: 16px;
-		height: 16px;
+		width: 14px;
+		height: 14px;
 		background: var(--foreground);
 		border-radius: 50%;
 		border: 2px solid var(--background);
 		transition: left 0.3s ease;
 	}
 
-	.remaining-time {
-		text-align: right;
-		color: var(--comment);
-		font-family: monospace;
-		font-size: 0.9rem;
-	}
-
+	/* Encart 2 : Song Markers */
 	.markers-section {
 		background: var(--background);
 		border-radius: 0.75rem;
 		border: 1px solid var(--current-line);
-		padding: 1.5rem;
+		padding: 1.25rem;
 	}
 
 	.markers-section h3 {
-		margin: 0 0 1rem 0;
+		margin: 0 0 0.85rem 0;
+		font-size: 1.1rem;
 		color: var(--foreground);
 	}
 
 	.markers-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 0.75rem;
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+		gap: 0.65rem;
 	}
 
 	.marker-button {
-		padding: 0.75rem;
+		padding: 0.65rem;
 		background: var(--current-line);
 		border: 1px solid var(--comment);
 		border-radius: 0.5rem;
@@ -600,69 +603,97 @@
 
 	.marker-name {
 		font-weight: 600;
-		margin-bottom: 0.25rem;
+		margin-bottom: 0.2rem;
 	}
 
 	.marker-time {
-		font-size: 0.875rem;
+		font-size: 0.8rem;
 		color: var(--comment);
 		font-family: monospace;
 	}
 
-	.transport-section {
-		background: var(--background);
-		border-radius: 1rem;
-		border: 2px solid var(--current-line);
-		padding: 2rem;
-		display: flex;
-		flex-direction: column;
-		gap: 2rem;
-	}
-
-	.transport-controls {
-		display: flex;
-		justify-content: center;
-	}
-
-	.set-section {
+	/* Encart 3 : Vue d'ensemble des onglets & Tags live */
+	.tabs-overview-section {
 		background: var(--background);
 		border-radius: 0.75rem;
 		border: 1px solid var(--current-line);
-		padding: 1.5rem;
+		padding: 1.25rem;
+	}
+
+	.tabs-overview-section h3 {
+		margin: 0 0 0.85rem 0;
+		font-size: 1.1rem;
+		color: var(--foreground);
+	}
+
+	.tabs-list {
 		display: flex;
 		flex-direction: column;
-		gap: 1.5rem;
+		gap: 0.5rem;
 	}
 
-	.main-controls {
+	.tab-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		padding: 0.75rem 1rem;
+		background: var(--current-line);
+		border-radius: 0.5rem;
+		border-left: 4px solid transparent;
+	}
+
+	.tab-row.active-tab {
+		border-left-color: var(--primary);
+		background: hsl(from var(--current-line) h s calc(l * 1.15));
+	}
+
+	.tab-row-info {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.65rem;
 	}
 
-	:global(.play-pause-button) {
-		transform: scale(1.5);
+	.tab-index {
+		font-family: monospace;
+		color: var(--comment);
+		font-size: 0.85rem;
 	}
 
-	:global(.record-button) {
-		margin-left: 1rem;
-	}
-
-	.next-song-name {
+	.tab-title {
 		font-weight: 600;
 		color: var(--foreground);
 	}
 
-	.next-song-duration {
-		color: var(--comment);
+	.tab-duration {
 		font-family: monospace;
+		font-size: 0.85rem;
+		color: var(--comment);
 	}
 
-	.set-complete {
-		color: var(--green);
+	.tab-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+
+	.live-tag-toggle {
+		font-size: 0.8rem;
+		padding: 0.3rem 0.65rem;
+		border-radius: 0.35rem;
+		border: 1px solid var(--comment);
+		background: var(--background);
+		color: var(--comment);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.live-tag-toggle.active {
+		background: var(--green, #50fa7b);
+		border-color: var(--green, #50fa7b);
+		color: var(--background, #282a36);
 		font-weight: 600;
-		text-align: center;
-		padding: 1rem;
 	}
 
 	.no-setlist {
@@ -683,50 +714,28 @@
 		color: var(--comment);
 	}
 
-	/* Responsive Design */
 	@media (max-width: 768px) {
 		.player-container {
 			padding: 1rem;
 			gap: 1rem;
 		}
 
-		.current-song-section {
-			padding: 1.5rem;
-			gap: 1rem;
-		}
-
-		.song-info {
-			text-align: center;
-		}
-
-		.next-up-info {
-			padding-top: 0.75rem;
+		.main-player-card {
+			padding: 1rem;
 		}
 
 		.song-title {
-			font-size: 1.75rem;
-			margin: 0.25rem 0 0 0;
+			font-size: 1.5rem;
 		}
 
-		.transport-section {
-			padding: 1.5rem;
-			gap: 1.5rem;
+		.next-up-block {
+			align-items: flex-start;
+			text-align: left;
 		}
 
-		.set-section {
-			gap: 1rem;
-		}
-
-		.markers-grid {
-			grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-		}
-
-		.main-controls {
-			gap: 0.75rem;
-		}
-
-		:global(.play-pause-button) {
-			transform: scale(1.3);
+		.unified-controls {
+			gap: 0.65rem;
 		}
 	}
 </style>
+

@@ -57,19 +57,25 @@ end
 
 ---Met à jour les marqueurs taggués du projet actif selon les chunks JSON reçus
 ---@param tag_chunks string[]
-local function SetSongMarkerTags(tag_chunks)
+local function SetSongMarkerTags(tab_index, tag_chunks)
     if not tag_chunks or type(tag_chunks) ~= "table" then
+        return
+    end
+
+    local idx = tonumber(tab_index)
+    local proj = (idx ~= nil) and reaper.EnumProjects(idx) or 0
+    if not proj then
         return
     end
 
     local raw_json = table.concat(tag_chunks)
     local tags = ParseTagsJson(raw_json)
 
-    local _, num_markers, num_regions = reaper.CountProjectMarkers(0)
+    local _, num_markers, num_regions = reaper.CountProjectMarkers(proj)
     local total = num_markers + num_regions
 
     for i = 0, total - 1 do
-        local retval, isrgn, pos, rgnend, name, markrgnindexnumber, color = reaper.EnumProjectMarkers3(0, i)
+        local retval, isrgn, pos, rgnend, name, markrgnindexnumber, color = reaper.EnumProjectMarkers3(proj, i)
         if retval > 0 and not isrgn and name then
             local changed = false
             local new_name = name:gsub("%[([^%]]+)%]%(([^%)]*)%)", function(tag_name, inner_content)

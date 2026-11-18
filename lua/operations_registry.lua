@@ -28,6 +28,7 @@ local SetSongMarkerTags = require "operations/set_song_marker_tags"
 ---@field name string
 ---@field length number
 ---@field dirty boolean
+---@field tags Record<string, boolean>
 
 local Operations = {
 	["listProjects"] = safe_operation(function()
@@ -164,6 +165,11 @@ local Operations = {
 	end),
 
 	["setSongMarkerTags"] = safe_operation(function()
+		local tabIndex = reaper.GetExtState(Globals.SECTION, "tabIndex")
+		if tabIndex == nil or tabIndex == "" then
+			error("Missing required parameter: tabIndex")
+		end
+
 		local tags_length = reaper.GetExtState(Globals.SECTION, "tags_length")
 		if tags_length == nil or tags_length == "" then
 			error("Missing required parameter: tags_length")
@@ -179,8 +185,9 @@ local Operations = {
 			end
 		end
 
-		SetSongMarkerTags(tags)
+		SetSongMarkerTags(tabIndex, tags)
 
+		reaper.DeleteExtState(Globals.SECTION, "tabIndex", true)
 		reaper.DeleteExtState(Globals.SECTION, "tags", true)
 	end),
 }

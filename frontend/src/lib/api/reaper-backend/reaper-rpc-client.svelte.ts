@@ -10,6 +10,7 @@ export interface ReaperTab {
 	name: string;
 	length: number;
 	dirty: boolean;
+	tags: Record<string, boolean>;
 }
 
 export class ReaperRpcClient {
@@ -143,8 +144,9 @@ export class ReaperRpcClient {
 		await this.apiClient.executeCommands(commands);  
 	}  
 
-	public async setSongMarkerTags<T>(tags: Chunkable<T>): Promise<void> { 
+	public async setSongMarkerTags<T>(tabIndex: string, tags: Chunkable<T>): Promise<void> { 
 		const commands = [ 
+			new SetStateCommand(SectionKeys.ReaperSetlist, "tabIndex", tabIndex), 
 			...this.getChunkCommands("tags", tags), 
 			new SetOperationCommand("setSongMarkerTags"), 
 			new RunScriptCommand(), 

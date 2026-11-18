@@ -3,6 +3,7 @@ interface ReaperTab {
 	name: string;
 	length: number;
 	dirty: boolean;
+	tags: Record<string, boolean>;
 }
 
 interface TabsResponse {
@@ -26,5 +27,5 @@ export interface ScriptOperations {
 	getOpenTabs: () => TabsResponse;
 	writeChunkedData: <T>(section: string, key: string, chunks: Chunkable<T>) => void;
 	deleteState: (section: string, key: string) => void;
-	setSongMarkerTags: <T>(tags: Chunkable<T>) => void;
+	setSongMarkerTags: <T>(tabIndex: string, tags: Chunkable<T>) => void;
 }

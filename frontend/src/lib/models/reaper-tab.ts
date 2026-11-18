@@ -3,4 +3,5 @@ export interface ReaperTab {
 	name: string;
 	length: number; // in seconds
 	dirty: boolean;
+	tags?: Record<string, boolean>;
 }
