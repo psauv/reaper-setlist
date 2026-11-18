@@ -343,6 +343,22 @@
 				</div>
 			</div>
 
+			<!-- Gros boutons d'urgence pour les tags du morceau actif -->
+			{#if Object.keys(liveTags).length > 0}
+				<div class="emergency-tags-grid">
+					{#each Object.entries(liveTags) as [tagName, isActive] (tagName)}
+						<button
+							type="button"
+							class="emergency-tag-button"
+							class:active={isActive}
+							onclick={() => toggleTabTag(currentSongIndex, tagName, isActive)}
+						>
+							<span class="emergency-tag-name">{tagName}</span>
+							<span class="emergency-tag-status">{isActive ? 'ON' : 'OFF'}</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
 
 			<!-- Barres de progression compactes -->
 			<div class="compact-progress-list">
@@ -525,6 +541,49 @@
 		.unified-controls {
 			justify-content: center;
 		}
+	}
+
+	.emergency-tags-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		gap: 0.75rem;
+	}
+
+	.emergency-tag-button {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.25rem;
+		padding: 0.85rem 1rem;
+		background: var(--current-line);
+		border: 2px solid var(--comment);
+		border-radius: 0.5rem;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		color: var(--comment);
+	}
+
+	.emergency-tag-button:hover {
+		border-color: var(--primary);
+	}
+
+	.emergency-tag-button.active {
+		background: var(--green, #50fa7b);
+		border-color: var(--green, #50fa7b);
+		color: var(--background, #282a36);
+	}
+
+	.emergency-tag-name {
+		font-size: 1rem;
+		font-weight: 700;
+	}
+
+	.emergency-tag-status {
+		font-size: 0.8rem;
+		font-family: monospace;
+		font-weight: 600;
+		opacity: 0.9;
 	}
 
 	.compact-progress-list {
