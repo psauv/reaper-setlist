@@ -153,4 +153,12 @@ export class ReaperRpcClient {
 		] as const; 
 		await this.apiClient.executeCommands(commands);  
 	}  
+
+	public async forceCloseAllTabs(): Promise<void> { 
+		const commands = [ 
+			new SetOperationCommand("forceCloseAllTabs"), 
+			new RunScriptCommand(), 
+		] as const; 
+		await this.apiClient.executeCommands(commands);  
+	}  
 }

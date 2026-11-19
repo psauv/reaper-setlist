@@ -163,7 +163,7 @@
 
 	async function closeAllTabs(): Promise<boolean> {
 		try {
-			await api.reaper.closeAllTabs();
+			await api.script.forceCloseAllTabs();
 			return true;
 		} catch (error) {
 			notifications.error(`Failed to close all tabs: ${(error as Error).message}`);
@@ -291,7 +291,7 @@
 		} finally {
 			working = false;
 		}
-	}
+	}	
 </script>
 
 <meta:head>
@@ -345,9 +345,15 @@
 					<li>Save your changes in Reaper, then click "Check Again" below</li>
 					<li>Or disable "Replace existing tabs" to keep your current tabs</li>
 				</ul>
-				<Button onclick={refreshTabs} disabled={checkingTabs} variant="text">
-					{checkingTabs ? 'Checking...' : 'Check Again'}
-				</Button>
+				<div class="warning-actions">
+					<Button onclick={refreshTabs} disabled={checkingTabs} variant="text">
+						{checkingTabs ? 'Checking...' : 'Check Again'}
+					</Button>
+					<Button onclick={loadSet} disabled={working} color="delete">
+						Load Anyway
+					</Button>
+				</div>
+
 			</div>
 		</div>
 	{/if}
@@ -482,5 +488,13 @@
 	.tab-index {
 		color: var(--comment);
 		font-size: 0.9rem;
+	}
+
+	.warning-actions { 
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-top: 1rem;
+		flex-wrap: wrap;
 	}
 </style>

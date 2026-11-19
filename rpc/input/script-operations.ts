@@ -28,4 +28,5 @@ export interface ScriptOperations {
 	writeChunkedData: <T>(section: string, key: string, chunks: Chunkable<T>) => void;
 	deleteState: (section: string, key: string) => void;
 	setSongMarkerTags: <T>(tabIndex: string, tags: Chunkable<T>) => void;
+	forceCloseAllTabs: () => void;
 }

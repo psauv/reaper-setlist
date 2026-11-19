@@ -22,6 +22,7 @@ local GetOpenTabs = require "operations/get_open_tabs"
 local WriteChunkedData = require "operations/write_chunked_data"
 local DeleteState = require "operations/delete_state"
 local SetSongMarkerTags = require "operations/set_song_marker_tags"
+local ForceCloseAllTabs = require "operations/force_close_all_tabs"
 
 ---@class ReaperTab
 ---@field index number
@@ -189,6 +190,11 @@ local Operations = {
 
 		reaper.DeleteExtState(Globals.SECTION, "tabIndex", true)
 		reaper.DeleteExtState(Globals.SECTION, "tags", true)
+	end),
+
+	["forceCloseAllTabs"] = safe_operation(function()
+		ForceCloseAllTabs()
+
 	end),
 }
 
