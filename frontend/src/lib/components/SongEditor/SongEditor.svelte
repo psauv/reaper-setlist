@@ -29,9 +29,33 @@
 		defaultTags: { ...(originalSong.defaultTags ?? {}) }
 	});
 	const duration = $derived(getDuration(song.length));
+		interface TagConfig {
+		state: boolean;
+		saveInSetlists: boolean;
+	}
+
+	function initTagConfigs(songData: SongLike): Record<string, TagConfig> {
+		const configs: Record<string, TagConfig> = {};
+		if (songData.defaultTags) {
+			for (const [name, state] of Object.entries(songData.defaultTags)) {
+				configs[name] = { state, saveInSetlists: true };
+			}
+		}
+		if (songData.ignoredTags) {
+			for (const name of songData.ignoredTags) {
+				if (!configs[name]) {
+					configs[name] = { state: false, saveInSetlists: false };
+				}
+			}
+		}
+		return configs;
+	}
+
+	let tagConfigs = $state<Record<string, TagConfig>>(initTagConfigs(originalSong));
 	const tagEntries = $derived(
-		Object.entries(song.defaultTags ?? {}).toSorted((a, b) => a[0].localeCompare(b[0]))
+		Object.entries(tagConfigs).toSorted((a, b) => a[0].localeCompare(b[0]))
 	);
+
 
 
 	let hideUsedProjects = $state(true);
@@ -73,7 +97,16 @@
 
 		song.length = Math.ceil(await api.script.getProjectLength());
 		const markers = await api.reaper.getMarkers();
-		song.defaultTags = extractTagsFromMarkers(markers);
+		const extracted = extractTagsFromMarkers(markers);
+
+		const nextConfigs: Record<string, TagConfig> = {};
+		for (const [tagName, defaultState] of Object.entries(extracted)) {
+			nextConfigs[tagName] = {
+				state: defaultState,
+				saveInSetlists: tagConfigs[tagName]?.saveInSetlists ?? true
+			};
+		}
+		tagConfigs = nextConfigs;
 
 		if (openedNewTab) {
 			await api.reaper.closeTab();
@@ -84,12 +117,40 @@
 	}
 
 	function toggleDefaultTag(tagName: string) {
-		if (!song.defaultTags) song.defaultTags = {};
-		song.defaultTags[tagName] = !song.defaultTags[tagName];
+		if (tagConfigs[tagName]) {
+			tagConfigs[tagName].state = !tagConfigs[tagName].state;
+		}
 	}
+
+	function toggleSaveInSetlists(tagName: string) {
+		if (tagConfigs[tagName]) {
+			tagConfigs[tagName].saveInSetlists = !tagConfigs[tagName].saveInSetlists;
+		}
+	}
+
+	function handleSubmit() {
+		const filteredDefaultTags: Record<string, boolean> = {};
+		const ignoredTags: string[] = [];
+
+		for (const [tagName, config] of Object.entries(tagConfigs)) {
+			if (config.saveInSetlists) {
+				filteredDefaultTags[tagName] = config.state;
+			} else {
+				ignoredTags.push(tagName);
+			}
+		}
+
+		song.defaultTags = filteredDefaultTags;
+		song.ignoredTags = ignoredTags;
+		onSubmit(song);
+	}
+
+
+
+	
 </script>
 
-<Form onsubmit={() => onSubmit(song)}>
+<Form onsubmit={handleSubmit}>
 	<div class="form-group">
 		<label for="relative-path">Project File:</label>
 		<select onchange={(e) => handleProjectSelect(e.currentTarget.value)} bind:value={song.path} id="relative-path" required>
@@ -120,8 +181,8 @@
 		<span class="duration-display">{duration}</span>
 	</div>
 
-	<div class="form-group">
-		<label>Marker Tags (Default values):</label>
+		<div class="form-group">
+		<span class="section-label">Marker Tags:</span>
 		{#if tagEntries.length === 0}
 			<p class="no-tags">No tagged markers found. Click "Get from Reaper" to scan project markers.</p>
 		{:else}
@@ -130,16 +191,32 @@
 					<tr>
 						<th>Tag Name</th>
 						<th>Default State</th>
+						<th>Save in Setlists</th>
 					</tr>
 				</thead>
 				<tbody>
-					{#each tagEntries as [tagName, isActive] (tagName)}
+					{#each tagEntries as [tagName, config] (tagName)}
 						<tr>
 							<td>{tagName}</td>
 							<td>
 								<label class="toggle-label">
-									<input type="checkbox" checked={isActive} onchange={() => toggleDefaultTag(tagName)} />
-									<span>{isActive ? 'Enabled' : 'Disabled'}</span>
+									<input
+										type="checkbox"
+										checked={config.state}
+										disabled={!config.saveInSetlists}
+										onchange={() => toggleDefaultTag(tagName)}
+									/>
+									<span>{config.state ? 'Enabled' : 'Disabled'}</span>
+								</label>
+							</td>
+							<td>
+								<label class="toggle-label">
+									<input
+										type="checkbox"
+										checked={config.saveInSetlists}
+										onchange={() => toggleSaveInSetlists(tagName)}
+									/>
+									<span>{config.saveInSetlists ? 'Yes' : 'Live only'}</span>
 								</label>
 							</td>
 						</tr>
@@ -148,6 +225,7 @@
 			</table>
 		{/if}
 	</div>
+
 
 	<div class="submit-section">
 		<Button elementType="submit" disabled={song.name === '' || song.path === ''}>Save</Button>

@@ -11,4 +11,6 @@ interface SongCommon {
 	length: number;
 	path: string;
 	defaultTags?: Record<string, boolean>;
+	ignoredTags?: string[];
 }
+
