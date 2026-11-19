@@ -23,6 +23,7 @@ local WriteChunkedData = require "operations/write_chunked_data"
 local DeleteState = require "operations/delete_state"
 local SetSongMarkerTags = require "operations/set_song_marker_tags"
 local ForceCloseAllTabs = require "operations/force_close_all_tabs"
+local MoveProjectTab = require "operations/move_project_tab"
 
 ---@class ReaperTab
 ---@field index number
@@ -195,6 +196,23 @@ local Operations = {
 	["forceCloseAllTabs"] = safe_operation(function()
 		ForceCloseAllTabs()
 
+	end),
+
+	["moveProjectTab"] = safe_operation(function()
+		local fromIndex = reaper.GetExtState(Globals.SECTION, "fromIndex")
+		if fromIndex == nil or fromIndex == "" then
+			error("Missing required parameter: fromIndex")
+		end
+
+		local toIndex = reaper.GetExtState(Globals.SECTION, "toIndex")
+		if toIndex == nil or toIndex == "" then
+			error("Missing required parameter: toIndex")
+		end
+
+		MoveProjectTab(fromIndex, toIndex)
+
+		reaper.DeleteExtState(Globals.SECTION, "fromIndex", true)
+		reaper.DeleteExtState(Globals.SECTION, "toIndex", true)
 	end),
 }
 

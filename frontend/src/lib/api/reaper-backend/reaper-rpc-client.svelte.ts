@@ -161,4 +161,14 @@ export class ReaperRpcClient {
 		] as const; 
 		await this.apiClient.executeCommands(commands);  
 	}  
+
+	public async moveProjectTab(fromIndex: string, toIndex: string): Promise<void> { 
+		const commands = [ 
+			new SetStateCommand(SectionKeys.ReaperSetlist, "fromIndex", fromIndex), 
+			new SetStateCommand(SectionKeys.ReaperSetlist, "toIndex", toIndex), 
+			new SetOperationCommand("moveProjectTab"), 
+			new RunScriptCommand(), 
+		] as const; 
+		await this.apiClient.executeCommands(commands);  
+	}  
 }

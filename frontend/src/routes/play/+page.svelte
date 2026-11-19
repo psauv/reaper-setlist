@@ -24,6 +24,23 @@
 	import SkipPreviousIcon from 'virtual:icons/mdi/skip-previous';
 	import StopIcon from 'virtual:icons/mdi/stop';
 	import { Commands } from '$lib/api/reaper-backend/commands';
+		import Draggable from '$lib/components/Draggable/Draggable.svelte';
+	import type { Database } from '$lib/models/database';
+	import type { Song } from '$lib/models/song';
+
+	// Bibliothèque de morceaux pour l'ajout à la volée
+	let librarySongs = $state<Database<Song>>({});
+	let selectedSongToAdd = $state<string>('');
+	let addingSong = $state<boolean>(false);
+
+	const sortedLibrarySongs = $derived(
+		Object.values(librarySongs).toSorted((a, b) => a.name.localeCompare(b.name))
+	);
+
+	// États pour le Drag & Drop dans Setlist Overview
+	let draggingIndex = $state<number | undefined>(undefined);
+	let draggingTargetIndex = $state<number | undefined>(undefined);
+	let tabsListRef = $state<HTMLDivElement | undefined>(undefined);
 
 	const api = getApi();
 
@@ -257,11 +274,97 @@
 		}
 	}
 
+		function getMiddle(element: HTMLElement) {
+		const rect = element.getBoundingClientRect();
+		return rect.top + rect.height / 2;
+	}
+
+	function onDragMove(y: number) {
+		if (!tabsListRef) return;
+		const childElements = Array.from(tabsListRef.querySelectorAll<HTMLDivElement>('.tab-row'));
+		if (childElements.length === 0) return;
+
+		const closest = childElements.reduce((prev, curr) =>
+			Math.abs(getMiddle(curr) - y) < Math.abs(getMiddle(prev) - y) ? curr : prev
+		);
+		if (y < getMiddle(closest)) {
+			draggingTargetIndex = childElements.indexOf(closest);
+		} else {
+			draggingTargetIndex = childElements.indexOf(closest) + 1;
+		}
+	}
+
+	function onDragStart(index: number) {
+		draggingIndex = index;
+	}
+
+	async function onDragEnd() {
+		if (draggingIndex !== undefined && draggingTargetIndex !== undefined && allTabs) {
+			const adjustedTarget = draggingTargetIndex > draggingIndex ? draggingTargetIndex - 1 : draggingTargetIndex;
+			if (adjustedTarget !== draggingIndex) {
+				const from = draggingIndex;
+				draggingIndex = undefined;
+				draggingTargetIndex = undefined;
+				try {
+					await api.script.moveProjectTab(from.toString(), adjustedTarget.toString());
+					await refreshTabs();
+				} catch (error) {
+					notifications.error(`Failed to move tab: ${(error as Error).message}`);
+				}
+				return;
+			}
+		}
+		draggingIndex = undefined;
+		draggingTargetIndex = undefined;
+	}
+
+	async function handleAddLiveSong() {
+		const song = librarySongs[selectedSongToAdd];
+		if (!song || addingSong) return;
+
+		addingSong = true;
+		try {
+			const originalTabIndex = currentSongIndex;
+			const newTabIndex = allTabs ? allTabs.length : 0;
+
+			// Ouvrir le morceau dans un nouvel onglet (créé à la fin des onglets)
+			await api.reaper.newTab();
+			await api.script.openProject(song.path);
+			await api.reaper.goToStart();
+
+			// Appliquer ses tags par défaut s'il en a
+			if (song.defaultTags && Object.keys(song.defaultTags).length > 0) {
+				await api.script.setSongMarkerTags(
+					newTabIndex.toString(),
+					song.defaultTags as Chunkable<Record<string, boolean>>
+				);
+			}
+
+			// Revenir immédiatement sur l'onglet qui était en cours de lecture
+			await refreshTabs();
+			if (originalTabIndex >= 0 && originalTabIndex !== newTabIndex) {
+				await goToTab(originalTabIndex);
+			}
+
+			notifications.success(`Added "${song.name}" to live tabs!`);
+		} catch (error) {
+			notifications.error(`Failed to add song: ${(error as Error).message}`);
+		} finally {
+			addingSong = false;
+		}
+	}
+
+
 	// Load sample data (in real app, this would come from route params)
 	onMount(async () => {
 		try {
 			tabsUpdateHandle = window.setInterval(refreshTabs, 5000); // Refresh tabs every 5 seconds
 			transportUpdateHandle = window.setInterval(refreshTransport, 1000); // Update transport every second
+
+			librarySongs = await api.songs.list();
+			if (sortedLibrarySongs.length > 0) {
+				selectedSongToAdd = sortedLibrarySongs.id;
+			}
 
 			await refreshTabs(); // Load initial tabs
 			await refreshMarkers(); // Load initial song markers
@@ -407,12 +510,17 @@
 			</div>
 		</div>
 
-		<!-- Encart 3 : Vue d'ensemble des onglets & contrôle des tags à la volée -->
+		<!-- Encart 3 : Setlist Overview, réorganisation & ajout à la volée -->
 		<div class="tabs-overview-section">
 			<h3>Setlist Overview</h3>
-			<div class="tabs-list">
-				{#each allTabs as tab (tab.index)}
-					<div class="tab-row" class:active-tab={tab.index === currentSongIndex}>
+			<div class="tabs-list" bind:this={tabsListRef}>
+				{#each allTabs as tab, i (tab.index)}
+					{#if draggingTargetIndex === i}
+						<div class="drag-target"></div>
+					{/if}
+					<div class="tab-row" class:active-tab={tab.index === currentSongIndex} class:dragging={draggingIndex === i}>
+						<Draggable onmove={(y) => onDragMove(y)} onstart={() => onDragStart(i)} onend={() => onDragEnd()} />
+
 						<button type="button" class="tab-row-select" onclick={() => goToTab(tab.index)}>
 							<span class="tab-index">#{tab.index + 1}</span>
 							<span class="tab-title">{formatTitle(tab.name)}</span>
@@ -435,7 +543,23 @@
 						{/if}
 					</div>
 				{/each}
+				{#if draggingTargetIndex === allTabs.length}
+					<div class="drag-target"></div>
+				{/if}
 			</div>
+
+			{#if sortedLibrarySongs.length > 0}
+				<div class="live-add-song">
+					<select bind:value={selectedSongToAdd} disabled={addingSong}>
+						{#each sortedLibrarySongs as song (song.id)}
+							<option value={song.id}>{song.name} ({formatDuration(song.length)})</option>
+						{/each}
+					</select>
+					<Button elementType="button" color="success" onclick={handleAddLiveSong} disabled={addingSong || !selectedSongToAdd}>
+						{addingSong ? 'Loading...' : 'Add Song'}
+					</Button>
+				</div>
+			{/if}
 		</div>
 	{:else}
 		<div class="no-setlist">
@@ -789,6 +913,37 @@
 		border-color: var(--green, #50fa7b);
 		color: var(--background, #282a36);
 		font-weight: 600;
+	}
+
+		.tab-row.dragging {
+		background-color: var(--black);
+		border: 1px solid var(--orange);
+	}
+
+	.drag-target {
+		height: 3px;
+		background-color: var(--orange);
+		width: 100%;
+		border-radius: 1.5px;
+		margin: 0.2rem 0;
+	}
+
+	.live-add-song {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--current-line);
+	}
+
+	.live-add-song select {
+		flex: 1;
+		padding: 0.5rem;
+		border-radius: 0.375rem;
+		background: var(--current-line);
+		color: var(--foreground);
+		border: 1px solid var(--comment);
 	}
 
 	.no-setlist {

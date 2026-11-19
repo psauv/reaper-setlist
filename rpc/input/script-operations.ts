@@ -29,4 +29,5 @@ export interface ScriptOperations {
 	deleteState: (section: string, key: string) => void;
 	setSongMarkerTags: <T>(tabIndex: string, tags: Chunkable<T>) => void;
 	forceCloseAllTabs: () => void;
+	moveProjectTab: (fromIndex: string, toIndex: string) => void;
 }
