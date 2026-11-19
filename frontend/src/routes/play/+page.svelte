@@ -59,6 +59,12 @@
 	let transportUpdateHandle = $state<number | null>(null);
 	let tabsUpdateHandle = $state<number | null>(null);
 
+	// Verrou de sécurité live
+	let liveLock = $state<boolean>(false);
+	const isPlaying = $derived(playState === PLAYSTATE_PLAYING || playState === PLAYSTATE_RECORDING);
+	const isTabNavigationLocked = $derived(liveLock && isPlaying);
+
+
 	// Current song data
 	const currentTab = $derived(!allTabs || currentSongIndex < 0 || currentSongIndex >= allTabs.length ? null : allTabs[currentSongIndex] || null);
 
@@ -133,6 +139,7 @@
 
 	// Player controls
 	async function togglePlayPause() {
+	if (liveLock && playState === PLAYSTATE_PLAYING) return;
 		try {
 			if (playState === PLAYSTATE_PLAYING) {
 				const transport = await api.reaper.pause();
@@ -147,6 +154,7 @@
 	}
 
 	async function stop() {
+		if (liveLock) return;
 		try {
 			const transport = await api.reaper.stop();
 			updateTransport(transport);
@@ -156,6 +164,7 @@
 	}
 
 	async function previousTrack() {
+		if (isTabNavigationLocked) return;
 		if (currentSongIndex > 0) {
 			currentSongIndex--;
 			const result = await api.reaper.previousTab();
@@ -165,6 +174,7 @@
 	}
 
 	async function nextTrack() {
+		if (isTabNavigationLocked) return;
 		if (allTabs && currentSongIndex < allTabs.length - 1) {
 			currentSongIndex++;
 			const result = await api.reaper.nextTab();
@@ -174,6 +184,7 @@
 	}
 
 	async function goToTab(targetIndex: number) {
+		if (isTabNavigationLocked) return;
 		if (!allTabs || targetIndex === currentSongIndex || targetIndex < 0 || targetIndex >= allTabs.length) {
 			return;
 		}
@@ -196,6 +207,7 @@
 
 
 	async function goToMarker(marker: ReaperMarker) {
+		if (liveLock) return;
 		try {
 			const transport = await api.reaper.goToMarker(marker.id);
 			updateTransport(transport);
@@ -206,6 +218,7 @@
 	}
 
 	async function goToStart() {
+		if (liveLock) return;
 		try {
 			const transport = await api.reaper.goToStart();
 			updateTransport(transport);
@@ -216,6 +229,7 @@
 	}
 
 	async function startRecording() {
+		if (liveLock) return;
 		try {
 			const transport = await api.reaper.record();
 			updateTransport(transport);
@@ -280,6 +294,7 @@
 	}
 
 	function onDragMove(y: number) {
+		if (liveLock) return;
 		if (!tabsListRef) return;
 		const childElements = Array.from(tabsListRef.querySelectorAll<HTMLDivElement>('.tab-row'));
 		if (childElements.length === 0) return;
@@ -295,10 +310,12 @@
 	}
 
 	function onDragStart(index: number) {
+		if (liveLock) return;
 		draggingIndex = index;
 	}
 
 	async function onDragEnd() {
+		if (liveLock) return;
 		if (draggingIndex !== undefined && draggingTargetIndex !== undefined && allTabs) {
 			const adjustedTarget = draggingTargetIndex > draggingIndex ? draggingTargetIndex - 1 : draggingTargetIndex;
 			if (adjustedTarget !== draggingIndex) {
@@ -319,6 +336,7 @@
 	}
 
 	async function handleAddLiveSong() {
+		if (liveLock) return;
 		const song = librarySongs[selectedSongToAdd];
 		if (!song || addingSong) return;
 
@@ -391,7 +409,18 @@
 </meta:head>
 
 <div class="player-container">
-	<h1>Live Player</h1>
+	<div class="player-header">
+		<h1>Live Player</h1>
+		<button
+			type="button"
+			class="live-lock-button"
+			class:locked={liveLock}
+			onclick={() => (liveLock = !liveLock)}
+		>
+			{liveLock ? '🔒 Live Lock: ON' : '🔓 Live Lock: OFF'}
+		</button>
+	</div>
+
 
 	{#if allTabs && currentTab}
 		<!-- Encart 1 : Lecteur unifié & Progression -->
@@ -418,11 +447,21 @@
 			<!-- Barre de contrôle séparée : Transport à gauche / Navigation à droite -->
 			<div class="unified-controls">
 				<div class="control-group transport-group">
-					<Button variant="icon" onclick={stop} color={playState === PLAYSTATE_PLAYING || playState === PLAYSTATE_PAUSED ? 'delete' : 'primary'}>
+					<Button
+						variant="icon"
+						onclick={stop}
+						disabled={liveLock}
+						color={playState === PLAYSTATE_PLAYING || playState === PLAYSTATE_PAUSED ? 'delete' : 'primary'}
+					>
 						<StopIcon />
 					</Button>
 
-					<Button variant="icon" onclick={togglePlayPause} color="success">
+					<Button
+						variant="icon"
+						onclick={togglePlayPause}
+						disabled={liveLock && playState === PLAYSTATE_PLAYING}
+						color="success"
+					>
 						{#if playState === PLAYSTATE_PLAYING}
 							<PauseIcon />
 						{:else}
@@ -430,17 +469,32 @@
 						{/if}
 					</Button>
 
-					<Button variant="icon" onclick={startRecording} color={playState === PLAYSTATE_RECORDING ? 'delete' : 'primary'}>
+					<Button
+						variant="icon"
+						onclick={startRecording}
+						disabled={liveLock}
+						color={playState === PLAYSTATE_RECORDING ? 'delete' : 'primary'}
+					>
 						<RecordIcon />
 					</Button>
 				</div>
 
 				<div class="control-group navigation-group">
-					<Button variant="icon" onclick={previousTrack} disabled={currentSongIndex === 0} color="secondary">
+					<Button
+						variant="icon"
+						onclick={previousTrack}
+						disabled={isTabNavigationLocked || currentSongIndex === 0}
+						color="secondary"
+					>
 						<SkipPreviousIcon />
 					</Button>
 
-					<Button variant="icon" onclick={nextTrack} disabled={!allTabs || currentSongIndex >= allTabs.length - 1} color="secondary">
+					<Button
+						variant="icon"
+						onclick={nextTrack}
+						disabled={isTabNavigationLocked || !allTabs || currentSongIndex >= allTabs.length - 1}
+						color="secondary"
+					>
 						<SkipNextIcon />
 					</Button>
 				</div>
@@ -494,21 +548,22 @@
 		</div>
 
 		<!-- Encart 2 : Song Markers -->
-		<div class="markers-section">
+		<div class="markers-section" class:section-locked={liveLock}>
 			<h3>Song Markers</h3>
 			<div class="markers-grid">
-				<button class="marker-button" onclick={() => goToStart()}>
+				<button class="marker-button" disabled={liveLock} onclick={() => goToStart()}>
 					<div class="marker-name">Start</div>
 					<div class="marker-time">{formatTime(0)}</div>
 				</button>
 				{#each visibleMarkers as marker (marker.id)}
-					<button class="marker-button" onclick={() => goToMarker(marker)}>
+					<button class="marker-button" disabled={liveLock} onclick={() => goToMarker(marker)}>
 						<div class="marker-name">{marker.name}</div>
 						<div class="marker-time">{formatTime(marker.position)}</div>
 					</button>
 				{/each}
 			</div>
 		</div>
+
 
 		<!-- Encart 3 : Setlist Overview, réorganisation & ajout à la volée -->
 		<div class="tabs-overview-section">
@@ -518,14 +573,23 @@
 					{#if draggingTargetIndex === i}
 						<div class="drag-target"></div>
 					{/if}
-					<div class="tab-row" class:active-tab={tab.index === currentSongIndex} class:dragging={draggingIndex === i}>
-						<Draggable onmove={(y) => onDragMove(y)} onstart={() => onDragStart(i)} onend={() => onDragEnd()} />
+										<div class="tab-row" class:active-tab={tab.index === currentSongIndex} class:dragging={draggingIndex === i}>
+						{#if !liveLock}
+							<Draggable onmove={(y) => onDragMove(y)} onstart={() => onDragStart(i)} onend={() => onDragEnd()} />
+						{/if}
 
-						<button type="button" class="tab-row-select" onclick={() => goToTab(tab.index)}>
+						<button
+							type="button"
+							class="tab-row-select"
+							disabled={isTabNavigationLocked}
+							onclick={() => goToTab(tab.index)}
+						>
 							<span class="tab-index">#{tab.index + 1}</span>
 							<span class="tab-title">{formatTitle(tab.name)}</span>
 							<span class="tab-duration">{formatDuration(tab.length)}</span>
 						</button>
+						<!-- Les boutons de tags restent toujours actifs même en Live Lock -->
+
 
 						{#if tab.tags && Object.keys(tab.tags).length > 0}
 							<div class="tab-tags">
@@ -534,6 +598,7 @@
 										type="button"
 										class="live-tag-toggle"
 										class:active={isActive}
+										disabled={liveLock}
 										onclick={() => toggleTabTag(tab.index, tagName, isActive)}
 									>
 										{tagName}: {isActive ? 'ON' : 'OFF'}
@@ -548,7 +613,7 @@
 				{/if}
 			</div>
 
-			{#if sortedLibrarySongs.length > 0}
+			{#if !liveLock && sortedLibrarySongs.length > 0}
 				<div class="live-add-song">
 					<select bind:value={selectedSongToAdd} disabled={addingSong}>
 						{#each sortedLibrarySongs as song (song.id)}
@@ -580,6 +645,52 @@
 		gap: 1.25rem;
 		width: 100%;
 		box-sizing: border-box;
+	}
+
+		.player-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+
+	.player-header h1 {
+		margin: 0;
+	}
+
+	.live-lock-button {
+		padding: 0.5rem 1rem;
+		border-radius: 0.5rem;
+		border: 2px solid var(--comment);
+		background: var(--current-line);
+		color: var(--foreground);
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.live-lock-button.locked {
+		background: var(--red, #ff5555);
+		border-color: var(--red, #ff5555);
+		color: #fff;
+	}
+
+	.marker-button:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		pointer-events: none;
+	}
+
+	.tab-row-select:disabled {
+		cursor: not-allowed;
+		opacity: 0.7;
+	}
+
+	.live-tag-toggle:disabled {
+		cursor: not-allowed;
+		opacity: 0.4;
 	}
 
 	/* Encart 1 : Lecteur unifié compact */
